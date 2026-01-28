@@ -1,0 +1,23 @@
+# Example terraform.tfvars file
+# Copy this file to terraform.tfvars and update with your values
+
+# AWS region for deployment
+aws_region = "us-east-1"
+
+# Project name (used for resource naming)
+project_name = "CowsWithAK"
+
+# Environment (prod, dev, staging)
+environment = "prod"
+
+# JWT secret key for token signing
+# IMPORTANT: Generate a secure random string for production!
+# Example: openssl rand -base64 32
+jwt_secret = "CHANGE-THIS-TO-A-SECURE-RANDOM-STRING"
+
+# Admin email for new user registration notifications
+admin_email = "admin@cowswithak.com"
+
+# SES verified sender email address
+# Must be verified in AWS SES before deployment
+ses_sender = "noreply@cowswithak.com"
