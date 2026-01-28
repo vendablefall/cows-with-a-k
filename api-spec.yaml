@@ -329,6 +329,144 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /messages:
+    get:
+      summary: Get message board messages
+      description: Retrieves paginated messages from the herd message board
+      operationId: getMessages
+      tags:
+        - Message Board
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of messages to return
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: lastKey
+          in: query
+          description: Last evaluated key for pagination
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+                  lastKey:
+                    type: string
+                    description: Key for next page of results
+                    example: msg-xyz-123
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: Post a message to the board
+      description: Creates a new message on the herd message board
+      operationId: postMessage
+      tags:
+        - Message Board
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+                  example: Did anyone else see the farmer's new tractor?
+      responses:
+        '201':
+          description: Message posted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    $ref: '#/components/schemas/Message'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /messages/{messageId}:
+    delete:
+      summary: Delete a message
+      description: Deletes a message from the board (only message author or admin)
+      operationId: deleteMessage
+      tags:
+        - Message Board
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          description: ID of the message to delete
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Message deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Message deleted successfully
+        '403':
+          description: Not authorized to delete this message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Message not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
 components:
   securitySchemes:
     BearerAuth:
@@ -385,6 +523,32 @@ components:
           format: date-time
           example: '2026-01-29T12:00:00Z'
 
+    Message:
+      type: object
+      properties:
+        messageId:
+          type: string
+          example: msg-abc-123-xyz
+        userId:
+          type: string
+          example: user-123-abc
+        username:
+          type: string
+          example: Bessie_007
+        content:
+          type: string
+          example: Did anyone else see the farmer's new tractor? I think it's listening to us.
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-01-29T14:30:00Z'
+        clearanceLevel:
+          type: string
+          enum: [LEVEL 1, LEVEL 2, TOP SECRET]
+          example: LEVEL 1
+
 tags:
   - name: Authentication
     description: User authentication and authorization endpoints
+  - name: Message Board
+    description: Herd message board operations

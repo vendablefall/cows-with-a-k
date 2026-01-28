@@ -43,6 +43,38 @@ Returns information about the currently authenticated user.
 - `BLACKLIST_TABLE`: DynamoDB table for token blacklist
 - `JWT_SECRET`: Secret key for JWT token verification
 
+### 5. get_messages.py
+Retrieves paginated messages from the message board.
+
+**Endpoint:** `GET /messages`
+
+**Environment Variables:**
+- `MESSAGES_TABLE`: DynamoDB table for messages (default: CowsWithAK-Messages)
+- `BLACKLIST_TABLE`: DynamoDB table for token blacklist
+- `JWT_SECRET`: Secret key for JWT token verification
+
+### 6. post_message.py
+Posts a new message to the message board.
+
+**Endpoint:** `POST /messages`
+
+**Environment Variables:**
+- `MESSAGES_TABLE`: DynamoDB table for messages
+- `USERS_TABLE`: DynamoDB table name for users
+- `BLACKLIST_TABLE`: DynamoDB table for token blacklist
+- `JWT_SECRET`: Secret key for JWT token verification
+
+### 7. delete_message.py
+Deletes a message from the board (owner or admin only).
+
+**Endpoint:** `DELETE /messages/{messageId}`
+
+**Environment Variables:**
+- `MESSAGES_TABLE`: DynamoDB table for messages
+- `USERS_TABLE`: DynamoDB table name for users
+- `BLACKLIST_TABLE`: DynamoDB table for token blacklist
+- `JWT_SECRET`: Secret key for JWT token verification
+
 ## DynamoDB Tables
 
 ### Users Table (CowsWithAK-Users)
@@ -70,6 +102,22 @@ Attributes:
 - token (String)
 - blacklistedAt (String - ISO 8601)
 - ttl (Number) - DynamoDB TTL for auto-deletion
+```
+
+### Messages Table (CowsWithAK-Messages)
+```
+Primary Key: messageId (String)
+
+Attributes:
+- messageId (String)
+- userId (String)
+- username (String)
+- content (String)
+- timestamp (String - ISO 8601)
+- clearanceLevel (String)
+
+GSI: timestamp-index (for chronological retrieval)
+- Partition Key: timestamp (String)
 ```
 
 ## Deployment

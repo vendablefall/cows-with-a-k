@@ -230,7 +230,7 @@ const AWSBackend = {
         }
       }
 
-      // Handle message board endpoint (placeholder for future implementation)
+      // Handle message board endpoint
       if (path === '/messages') {
         try {
           const token = AWSBackend._authToken || localStorage.getItem('cow_auth_token');
@@ -245,6 +245,11 @@ const AWSBackend = {
           });
 
           const data = await response.json();
+          
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to post message');
+          }
+          
           return data;
         } catch (error) {
           console.error('Message post error:', error);
@@ -354,6 +359,101 @@ const AWSBackend = {
     } catch (error) {
       console.error('Reset password error:', error);
       throw error;
+    }
+  },
+
+  /**
+   * Message Board Operations
+   */
+  MessageBoard: {
+    /**
+     * Get messages - GET /messages
+     */
+    async getMessages(limit = 50, lastKey = null) {
+      try {
+        const token = AWSBackend._authToken || localStorage.getItem('cow_auth_token');
+        
+        let url = `${API_BASE_URL}/messages?limit=${limit}`;
+        if (lastKey) {
+          url += `&lastKey=${lastKey}`;
+        }
+        
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to retrieve messages');
+        }
+
+        return data;
+      } catch (error) {
+        console.error('Get messages error:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Post message - POST /messages
+     */
+    async postMessage(content) {
+      try {
+        const token = AWSBackend._authToken || localStorage.getItem('cow_auth_token');
+        
+        const response = await fetch(`${API_BASE_URL}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ content })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to post message');
+        }
+
+        return data;
+      } catch (error) {
+        console.error('Post message error:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Delete message - DELETE /messages/{messageId}
+     */
+    async deleteMessage(messageId) {
+      try {
+        const token = AWSBackend._authToken || localStorage.getItem('cow_auth_token');
+        
+        const response = await fetch(`${API_BASE_URL}/messages/${messageId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to delete message');
+        }
+
+        return data;
+      } catch (error) {
+        console.error('Delete message error:', error);
+        throw error;
+      }
     }
   }
 };
@@ -826,6 +926,102 @@ const LoginView = ({ setUser, setView }) => {
 
 const DashboardView = ({ user }) => {
   const [activeTab, setActiveTab] = useState('events');
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [messageLoading, setMessageLoading] = useState(false);
+  const [messageError, setMessageError] = useState('');
+  const messagesEndRef = useRef(null);
+
+  // Load messages when board tab is active
+  useEffect(() => {
+    if (activeTab === 'board') {
+      loadMessages();
+    }
+  }, [activeTab]);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const loadMessages = async () => {
+    setMessageLoading(true);
+    setMessageError('');
+    try {
+      const data = await AWSBackend.MessageBoard.getMessages(50);
+      if (data.success && data.messages) {
+        setMessages(data.messages);
+      }
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+      setMessageError('Failed to load messages. Using offline mode.');
+      // Fallback to mock data
+      setMessages([
+        {
+          messageId: '1',
+          username: 'Bessie_007',
+          content: "Did anyone else see the farmer's new tractor? I think it's listening to us.",
+          timestamp: new Date(Date.now() - 3600000).toISOString(),
+          userId: 'user-123'
+        },
+        {
+          messageId: '2',
+          username: user.username,
+          content: "Relax. It's just a John Deere. Stick to the code words.",
+          timestamp: new Date(Date.now() - 1800000).toISOString(),
+          userId: user.attributes?.sub
+        }
+      ]);
+    } finally {
+      setMessageLoading(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim()) return;
+
+    setMessageError('');
+    const messageContent = newMessage.trim();
+    setNewMessage(''); // Clear input immediately
+
+    try {
+      const data = await AWSBackend.MessageBoard.postMessage(messageContent);
+      if (data.success && data.message) {
+        // Add new message to the list
+        setMessages(prev => [...prev, data.message]);
+      }
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      setMessageError(error.message || 'Failed to send message');
+      setNewMessage(messageContent); // Restore message on error
+    }
+  };
+
+  const handleDeleteMessage = async (messageId) => {
+    if (!window.confirm('Delete this message from the pasture?')) return;
+
+    try {
+      await AWSBackend.MessageBoard.deleteMessage(messageId);
+      // Remove message from list
+      setMessages(prev => prev.filter(msg => msg.messageId !== messageId));
+    } catch (error) {
+      console.error('Failed to delete message:', error);
+      setMessageError(error.message || 'Failed to delete message');
+    }
+  };
+
+  const formatTimestamp = (timestamp) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return date.toLocaleDateString();
+  };
 
   return (
     <div className="min-h-screen pb-32">
@@ -890,25 +1086,82 @@ const DashboardView = ({ user }) => {
 
             {activeTab === 'board' && (
               <div className="h-full flex flex-col relative z-10">
-                <h2 className="text-4xl font-display text-grass-green border-b-4 border-soft-pink pb-2 mb-4 inline-block">Herd Chatter</h2>
-                <div className="flex-1 bg-white rounded-lg p-6 mb-4 overflow-y-auto h-96 space-y-6 border-2 border-cow-black shadow-inner">
-                  {/* Mock Messages */}
-                  <div className="flex flex-col space-y-1">
-                    <span className="text-xs text-grass-green font-bold ml-1 uppercase">Bessie_007</span>
-                    <div className="bg-gray-100 p-4 rounded-lg border-l-4 border-grass-green shadow-sm w-fit max-w-[80%] text-cow-black font-body font-bold">
-                      Did anyone else see the farmer's new tractor? I think it's listening to us.
-                    </div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-4xl font-display text-grass-green border-b-4 border-soft-pink pb-2 inline-block">Herd Chatter</h2>
+                  <button 
+                    onClick={loadMessages}
+                    disabled={messageLoading}
+                    className="text-sm bg-grass-green text-white px-4 py-2 rounded-lg hover:bg-dark-grass transition-colors disabled:opacity-50"
+                  >
+                    {messageLoading ? 'Loading...' : 'Refresh'}
+                  </button>
+                </div>
+                
+                {messageError && (
+                  <div className="bg-soft-pink/20 border-l-4 border-soft-pink text-cow-black px-4 py-2 mb-4 text-sm">
+                    {messageError}
                   </div>
-                  <div className="flex flex-col space-y-1 items-end">
-                    <span className="text-xs text-soft-pink font-bold mr-1 uppercase">You</span>
-                    <div className="bg-cow-black text-white p-4 rounded-lg border-r-4 border-soft-pink shadow-sm w-fit max-w-[80%] font-body">
-                      Relax. It's just a John Deere. Stick to the code words.
+                )}
+                
+                <div className="flex-1 bg-white rounded-lg p-6 mb-4 overflow-y-auto h-96 space-y-4 border-2 border-cow-black shadow-inner">
+                  {messageLoading && messages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-gray-400 font-body">Loading messages...</p>
                     </div>
-                  </div>
+                  ) : messages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-gray-400 font-body">No messages yet. Start the conversation!</p>
+                    </div>
+                  ) : (
+                    messages.map((msg) => {
+                      const isCurrentUser = msg.userId === user.attributes?.sub || msg.username === user.username;
+                      return (
+                        <div key={msg.messageId} className={`flex flex-col space-y-1 ${isCurrentUser ? 'items-end' : 'items-start'}`}>
+                          <div className="flex items-center space-x-2">
+                            <span className={`text-xs font-bold uppercase ${isCurrentUser ? 'text-soft-pink' : 'text-grass-green'}`}>
+                              {msg.username}
+                            </span>
+                            <span className="text-xs text-gray-400">{formatTimestamp(msg.timestamp)}</span>
+                          </div>
+                          <div className="flex items-start space-x-2">
+                            <div className={`p-4 rounded-lg shadow-sm max-w-[80%] font-body ${
+                              isCurrentUser 
+                                ? 'bg-cow-black text-white border-r-4 border-soft-pink' 
+                                : 'bg-gray-100 text-cow-black border-l-4 border-grass-green'
+                            }`}>
+                              {msg.content}
+                            </div>
+                            {isCurrentUser && (
+                              <button 
+                                onClick={() => handleDeleteMessage(msg.messageId)}
+                                className="text-red-500 hover:text-red-700 text-xs p-1"
+                                title="Delete message"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div ref={messagesEndRef} />
                 </div>
                 <div className="flex">
-                  <input type="text" placeholder="Type a message..." className="flex-1 border-2 border-cow-black bg-white p-4 rounded-l-lg focus:outline-none focus:border-soft-pink font-body" />
-                  <button className="bg-grass-green text-white px-8 rounded-r-lg hover:bg-soft-pink hover:text-cow-black font-display text-xl transition-colors border-2 border-cow-black border-l-0">
+                  <input 
+                    type="text" 
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder="Type a message..." 
+                    maxLength={500}
+                    className="flex-1 border-2 border-cow-black bg-white p-4 rounded-l-lg focus:outline-none focus:border-soft-pink font-body" 
+                  />
+                  <button 
+                    onClick={handleSendMessage}
+                    disabled={!newMessage.trim()}
+                    className="bg-grass-green text-white px-8 rounded-r-lg hover:bg-soft-pink hover:text-cow-black font-display text-xl transition-colors border-2 border-cow-black border-l-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
                     Moo!
                   </button>
                 </div>
