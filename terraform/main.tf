@@ -415,12 +415,33 @@ resource "aws_lambda_function" "delete_message" {
 }
 
 # ============================================
-# API Gateway
+# API Gateway (using OpenAPI Specification)
 # ============================================
+
+# Prepare OpenAPI spec with Lambda integrations
+locals {
+  openapi_spec = templatefile("${path.module}/api-spec-template.yaml", {
+    aws_region             = var.aws_region
+    environment            = var.environment
+    signin_lambda_arn      = aws_lambda_function.signin.invoke_arn
+    signup_lambda_arn      = aws_lambda_function.signup.invoke_arn
+    signout_lambda_arn     = aws_lambda_function.signout.invoke_arn
+    get_current_user_arn   = aws_lambda_function.get_current_user.invoke_arn
+    get_messages_arn       = aws_lambda_function.get_messages.invoke_arn
+    post_message_arn       = aws_lambda_function.post_message.invoke_arn
+    delete_message_arn     = aws_lambda_function.delete_message.invoke_arn
+  })
+}
 
 resource "aws_api_gateway_rest_api" "main" {
   name        = "${var.project_name}-api"
   description = "API Gateway for Cows with a K authentication and message board"
+
+  body = local.openapi_spec
+
+  endpoint_configuration {
+    types = ["REGIONAL"]
+  }
 
   tags = {
     Name        = "${var.project_name}-api"
@@ -429,65 +450,42 @@ resource "aws_api_gateway_rest_api" "main" {
   }
 }
 
-# /auth resource
-resource "aws_api_gateway_resource" "auth" {
+# API Gateway Deployment
+resource "aws_api_gateway_deployment" "main" {
   rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_rest_api.main.root_resource_id
-  path_part   = "auth"
+
+  triggers = {
+    redeployment = sha1(local.openapi_spec)
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  depends_on = [
+    aws_api_gateway_rest_api.main
+  ]
 }
 
-# /auth/signin
-resource "aws_api_gateway_resource" "signin" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.auth.id
-  path_part   = "signin"
-}
-
-resource "aws_api_gateway_method" "signin_post" {
+resource "aws_api_gateway_stage" "main" {
+  deployment_id = aws_api_gateway_deployment.main.id
   rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.signin.id
-  http_method   = "POST"
-  authorization = "NONE"
+  stage_name    = var.environment
+
+  tags = {
+    Name        = "${var.project_name}-api-${var.environment}"
+    Project     = var.project_name
+    Environment = var.environment
+  }
 }
 
-resource "aws_api_gateway_integration" "signin_lambda" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.signin.id
-  http_method             = aws_api_gateway_method.signin_post.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.signin.invoke_arn
-}
-
+# Lambda Permissions for API Gateway
 resource "aws_lambda_permission" "signin_apigw" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.signin.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
-}
-
-# /auth/signup
-resource "aws_api_gateway_resource" "signup" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.auth.id
-  path_part   = "signup"
-}
-
-resource "aws_api_gateway_method" "signup_post" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.signup.id
-  http_method   = "POST"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "signup_lambda" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.signup.id
-  http_method             = aws_api_gateway_method.signup_post.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.signup.invoke_arn
 }
 
 resource "aws_lambda_permission" "signup_apigw" {
@@ -498,29 +496,6 @@ resource "aws_lambda_permission" "signup_apigw" {
   source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
 }
 
-# /auth/signout
-resource "aws_api_gateway_resource" "signout" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.auth.id
-  path_part   = "signout"
-}
-
-resource "aws_api_gateway_method" "signout_post" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.signout.id
-  http_method   = "POST"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "signout_lambda" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.signout.id
-  http_method             = aws_api_gateway_method.signout_post.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.signout.invoke_arn
-}
-
 resource "aws_lambda_permission" "signout_apigw" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
@@ -529,30 +504,7 @@ resource "aws_lambda_permission" "signout_apigw" {
   source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
 }
 
-# /auth/me
-resource "aws_api_gateway_resource" "me" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.auth.id
-  path_part   = "me"
-}
-
-resource "aws_api_gateway_method" "me_get" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.me.id
-  http_method   = "GET"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "me_lambda" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.me.id
-  http_method             = aws_api_gateway_method.me_get.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.get_current_user.invoke_arn
-}
-
-resource "aws_lambda_permission" "me_apigw" {
+resource "aws_lambda_permission" "get_current_user_apigw" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.get_current_user.function_name
@@ -560,31 +512,7 @@ resource "aws_lambda_permission" "me_apigw" {
   source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
 }
 
-# /messages resource
-resource "aws_api_gateway_resource" "messages" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_rest_api.main.root_resource_id
-  path_part   = "messages"
-}
-
-# GET /messages
-resource "aws_api_gateway_method" "messages_get" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.messages.id
-  http_method   = "GET"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "messages_get_lambda" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.messages.id
-  http_method             = aws_api_gateway_method.messages_get.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.get_messages.invoke_arn
-}
-
-resource "aws_lambda_permission" "messages_get_apigw" {
+resource "aws_lambda_permission" "get_messages_apigw" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.get_messages.function_name
@@ -592,24 +520,7 @@ resource "aws_lambda_permission" "messages_get_apigw" {
   source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
 }
 
-# POST /messages
-resource "aws_api_gateway_method" "messages_post" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.messages.id
-  http_method   = "POST"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "messages_post_lambda" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.messages.id
-  http_method             = aws_api_gateway_method.messages_post.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.post_message.invoke_arn
-}
-
-resource "aws_lambda_permission" "messages_post_apigw" {
+resource "aws_lambda_permission" "post_message_apigw" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.post_message.function_name
@@ -617,125 +528,12 @@ resource "aws_lambda_permission" "messages_post_apigw" {
   source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
 }
 
-# /messages/{messageId}
-resource "aws_api_gateway_resource" "message_by_id" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  parent_id   = aws_api_gateway_resource.messages.id
-  path_part   = "{messageId}"
-}
-
-resource "aws_api_gateway_method" "message_delete" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.message_by_id.id
-  http_method   = "DELETE"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "message_delete_lambda" {
-  rest_api_id             = aws_api_gateway_rest_api.main.id
-  resource_id             = aws_api_gateway_resource.message_by_id.id
-  http_method             = aws_api_gateway_method.message_delete.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.delete_message.invoke_arn
-}
-
-resource "aws_lambda_permission" "message_delete_apigw" {
+resource "aws_lambda_permission" "delete_message_apigw" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.delete_message.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.main.execution_arn}/*/*"
-}
-
-# API Gateway Deployment
-resource "aws_api_gateway_deployment" "main" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-
-  triggers = {
-    redeployment = sha1(jsonencode([
-      aws_api_gateway_resource.auth.id,
-      aws_api_gateway_resource.signin.id,
-      aws_api_gateway_resource.signup.id,
-      aws_api_gateway_resource.signout.id,
-      aws_api_gateway_resource.me.id,
-      aws_api_gateway_resource.messages.id,
-      aws_api_gateway_resource.message_by_id.id,
-      aws_api_gateway_method.signin_post.id,
-      aws_api_gateway_method.signup_post.id,
-      aws_api_gateway_method.signout_post.id,
-      aws_api_gateway_method.me_get.id,
-      aws_api_gateway_method.messages_get.id,
-      aws_api_gateway_method.messages_post.id,
-      aws_api_gateway_method.message_delete.id,
-      aws_api_gateway_integration.signin_lambda.id,
-      aws_api_gateway_integration.signup_lambda.id,
-      aws_api_gateway_integration.signout_lambda.id,
-      aws_api_gateway_integration.me_lambda.id,
-      aws_api_gateway_integration.messages_get_lambda.id,
-      aws_api_gateway_integration.messages_post_lambda.id,
-      aws_api_gateway_integration.message_delete_lambda.id,
-    ]))
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-resource "aws_api_gateway_stage" "main" {
-  deployment_id = aws_api_gateway_deployment.main.id
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  stage_name    = var.environment
-}
-
-# Enable CORS
-resource "aws_api_gateway_method" "options_signin" {
-  rest_api_id   = aws_api_gateway_rest_api.main.id
-  resource_id   = aws_api_gateway_resource.signin.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "options_signin" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.signin.id
-  http_method = aws_api_gateway_method.options_signin.http_method
-  type        = "MOCK"
-
-  request_templates = {
-    "application/json" = "{\"statusCode\": 200}"
-  }
-}
-
-resource "aws_api_gateway_method_response" "options_signin" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.signin.id
-  http_method = aws_api_gateway_method.options_signin.http_method
-  status_code = "200"
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = true
-    "method.response.header.Access-Control-Allow-Methods" = true
-    "method.response.header.Access-Control-Allow-Origin"  = true
-  }
-
-  response_models = {
-    "application/json" = "Empty"
-  }
-}
-
-resource "aws_api_gateway_integration_response" "options_signin" {
-  rest_api_id = aws_api_gateway_rest_api.main.id
-  resource_id = aws_api_gateway_resource.signin.id
-  http_method = aws_api_gateway_method.options_signin.http_method
-  status_code = aws_api_gateway_method_response.options_signin.status_code
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,Authorization'"
-    "method.response.header.Access-Control-Allow-Methods" = "'POST,OPTIONS'"
-    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
-  }
 }
 
 # ============================================

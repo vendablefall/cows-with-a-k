@@ -1,0 +1,588 @@
+openapi: 3.0.0
+info:
+  title: Cows with a K Authentication API
+  description: AWS API Gateway endpoints for user authentication backed by Lambda functions
+  version: 1.0.0
+  contact:
+    email: admin@cowswithak.com
+
+servers:
+  - url: https://api.cowswithak.com/${environment}
+    description: API Gateway
+    variables:
+      environment:
+        default: prod
+        enum:
+          - prod
+          - dev
+
+x-amazon-apigateway-request-validators:
+  validate-body:
+    validateRequestBody: true
+    validateRequestParameters: false
+
+paths:
+  /auth/signin:
+    post:
+      summary: Sign in a user
+      description: Authenticates a user with email and password, returns JWT token
+      operationId: signIn
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: admin@cow.com
+                password:
+                  type: string
+                  format: password
+                  example: moo
+      responses:
+        '200':
+          description: Successfully authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: arn:aws:apigateway:${aws_region}:lambda:path/2015-03-31/functions/${signin_lambda_arn}/invocations
+        passthroughBehavior: when_no_match
+
+    options:
+      summary: CORS support
+      responses:
+        '200':
+          description: CORS headers
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+
+  /auth/signup:
+    post:
+      summary: Register a new user
+      description: Creates a new user account pending council approval
+      operationId: signUp
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - answers
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                answers:
+                  type: object
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  userId:
+                    type: string
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: arn:aws:apigateway:${aws_region}:lambda:path/2015-03-31/functions/${signup_lambda_arn}/invocations
+        passthroughBehavior: when_no_match
+
+    options:
+      summary: CORS support
+      responses:
+        '200':
+          description: CORS headers
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+
+  /auth/signout:
+    post:
+      summary: Sign out a user
+      description: Invalidates the user's JWT token
+      operationId: signOut
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successfully signed out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '401':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: arn:aws:apigateway:${aws_region}:lambda:path/2015-03-31/functions/${signout_lambda_arn}/invocations
+        passthroughBehavior: when_no_match
+
+    options:
+      summary: CORS support
+      responses:
+        '200':
+          description: CORS headers
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+
+  /auth/me:
+    get:
+      summary: Get current authenticated user
+      description: Returns the currently authenticated user's information
+      operationId: getCurrentUser
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User information retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: arn:aws:apigateway:${aws_region}:lambda:path/2015-03-31/functions/${get_current_user_arn}/invocations
+        passthroughBehavior: when_no_match
+
+    options:
+      summary: CORS support
+      responses:
+        '200':
+          description: CORS headers
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+
+  /messages:
+    get:
+      summary: Get message board messages
+      description: Retrieves paginated messages from the message board
+      operationId: getMessages
+      tags:
+        - Message Board
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of messages to return
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: lastKey
+          in: query
+          description: Last message ID for pagination
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+                  lastKey:
+                    type: string
+                    description: Key for next page of results
+        '401':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: arn:aws:apigateway:${aws_region}:lambda:path/2015-03-31/functions/${get_messages_arn}/invocations
+        passthroughBehavior: when_no_match
+
+    post:
+      summary: Post a message to the board
+      description: Creates a new message on the message board
+      operationId: postMessage
+      tags:
+        - Message Board
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+                  example: "Welcome to the herd! 🐄"
+      responses:
+        '201':
+          description: Message posted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400':
+          description: Invalid message content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: arn:aws:apigateway:${aws_region}:lambda:path/2015-03-31/functions/${post_message_arn}/invocations
+        passthroughBehavior: when_no_match
+
+    options:
+      summary: CORS support
+      responses:
+        '200':
+          description: CORS headers
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+
+  /messages/{messageId}:
+    delete:
+      summary: Delete a message
+      description: Deletes a message from the board (owner or admin only)
+      operationId: deleteMessage
+      tags:
+        - Message Board
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          description: ID of the message to delete
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Message deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '401':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to delete this message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Message not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: arn:aws:apigateway:${aws_region}:lambda:path/2015-03-31/functions/${delete_message_arn}/invocations
+        passthroughBehavior: when_no_match
+
+    options:
+      summary: CORS support
+      responses:
+        '200':
+          description: CORS headers
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+            Access-Control-Allow-Methods:
+              schema:
+                type: string
+            Access-Control-Allow-Headers:
+              schema:
+                type: string
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: 200
+            responseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /auth/signin endpoint
+
+  schemas:
+    User:
+      type: object
+      properties:
+        userId:
+          type: string
+          example: user-123-abc
+        email:
+          type: string
+          format: email
+          example: admin@cow.com
+        username:
+          type: string
+          example: admin
+        clearanceLevel:
+          type: string
+          enum:
+            - LEVEL 1
+            - LEVEL 2
+            - TOP SECRET
+          example: TOP SECRET
+        status:
+          type: string
+          enum:
+            - pending
+            - active
+            - suspended
+          example: active
+        createdAt:
+          type: string
+          format: date-time
+        lastLogin:
+          type: string
+          format: date-time
+
+    Message:
+      type: object
+      properties:
+        messageId:
+          type: string
+          example: msg-456-def
+        userId:
+          type: string
+          example: user-123-abc
+        username:
+          type: string
+          example: admin
+        content:
+          type: string
+          example: "Welcome to the herd! 🐄"
+        timestamp:
+          type: string
+          format: date-time
+        clearanceLevel:
+          type: string
+          enum:
+            - LEVEL 1
+            - LEVEL 2
+            - TOP SECRET
+          example: TOP SECRET
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: An error occurred
+        error:
+          type: string
+          example: Detailed error message
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization endpoints
+  - name: Message Board
+    description: Herd message board operations

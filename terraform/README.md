@@ -7,8 +7,10 @@ This directory contains Terraform configuration to deploy the Cows with a K infr
 The infrastructure includes:
 - **DynamoDB Tables**: Users, Messages, TokenBlacklist
 - **Lambda Functions**: 7 functions for authentication and message board
-- **API Gateway**: REST API with all endpoints configured
+- **API Gateway**: REST API defined by OpenAPI 3.0 specification with AWS Lambda integrations
 - **S3 Bucket**: Frontend hosting with static website configuration
+
+The API Gateway is configured using the OpenAPI specification file ([api-spec-template.yaml](api-spec-template.yaml)) as the single source of truth. This ensures consistency between documentation and implementation, with Terraform automatically injecting Lambda ARNs and AWS-specific extensions.
 
 ## Prerequisites
 
@@ -180,9 +182,20 @@ Functions:
 ### API Gateway
 
 - Type: REST API
+- Definition: OpenAPI 3.0 specification with AWS extensions
+- Source of Truth: [api-spec-template.yaml](api-spec-template.yaml)
 - Stage: Configurable (default: `prod`)
-- CORS: Enabled on all endpoints
+- CORS: Enabled on all endpoints via OPTIONS methods
 - Authentication: JWT tokens in Authorization header
+
+The API Gateway is generated from the OpenAPI spec, which includes:
+- Complete API documentation
+- Request/response schemas
+- AWS Lambda proxy integrations (x-amazon-apigateway-integration)
+- Automatic CORS configuration
+- Security definitions (Bearer JWT)
+
+Any changes to the API structure should be made in the OpenAPI spec file, and Terraform will automatically update the API Gateway deployment.
 
 ## Security Considerations
 
