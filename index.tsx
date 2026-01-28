@@ -90,12 +90,12 @@ const LORE_DATA = [
 ];
 
 const FESTIVAL_IMAGES = [
-  { url: "https://placehold.co/600x400/FFC1CC/000?text=DJ+Moo+Dropping+Beats", caption: "DJ Moo at Coachell-hay" },
-  { url: "https://placehold.co/600x400/FFC1CC/000?text=Mosh+Pit+Grazing", caption: "The Mosh Pit (It was just lunch)" },
-  { url: "https://placehold.co/600x400/FFC1CC/000?text=VIP+Tent", caption: "Backstage at the VIP (Very Important Pasture)" },
-  { url: "https://placehold.co/600x400/FFC1CC/000?text=Hoof+bump", caption: "Hoof-bumps with the fans" },
-  { url: "https://placehold.co/600x400/FFC1CC/000?text=Guitar+Solo", caption: "Bessie shredding the Gibson" },
-  { url: "https://placehold.co/600x400/FFC1CC/000?text=Rave+Cows", caption: "Neon Glow Sticks & Horns" },
+  { url: "https://placehold.co/600x400/FFC1CC/000?text=DJ+Moo+Dropping+Beats", caption: "DJ Moo at Coachell-hay", hoverColor: "bg-cow-black/90" },
+  { url: "https://placehold.co/600x400/FFC1CC/000?text=Mosh+Pit+Grazing", caption: "The Mosh Pit (It was just lunch)", hoverColor: "bg-cow-black/90" },
+  { url: "https://placehold.co/600x400/FFC1CC/000?text=VIP+Tent", caption: "Backstage at the VIP (Very Important Pasture)", hoverColor: "bg-cow-black/90" },
+  { url: "https://placehold.co/600x400/FFC1CC/000?text=Hoof+bump", caption: "Hoof-bumps with the fans", hoverColor: "bg-cow-black/90" },
+  { url: "https://placehold.co/600x400/FFC1CC/000?text=Guitar+Solo", caption: "Bessie shredding the Gibson", hoverColor: "bg-cow-black/90" },
+  { url: "https://placehold.co/600x400/FFC1CC/000?text=Rave+Cows", caption: "Neon Glow Sticks & Horns", hoverColor: "bg-cow-black/90" },
 ];
 
 const GALLERY_IMAGES = [
@@ -158,7 +158,7 @@ const Navigation = ({ setView, user, onLogout }) => {
     { id: 'gallery', label: 'Gallery', public: true },
     { id: 'register', label: 'Join the Herd', public: !user },
     { id: 'login', label: 'Login', public: !user },
-    { id: 'dashboard', label: 'The Pasture', public: !!user },
+    { id: 'dashboard', label: 'The Cow Hole', public: !!user },
   ];
 
   return (
@@ -269,7 +269,7 @@ const LandingView = () => (
         {FESTIVAL_IMAGES.map((img, idx) => (
           <div key={idx} className="group relative overflow-hidden rounded-md shadow-[8px_8px_0px_0px_#1a1a1a] transition-all border-4 border-cow-black transform hover:translate-x-1 hover:translate-y-1 hover:shadow-none bg-white">
             <img src={img.url} alt={img.caption} className="w-full h-64 object-cover hover:grayscale-0 transition-all duration-500" />
-            <div className="absolute inset-0 bg-grass-green/90 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-6 text-center">
+            <div className={`absolute inset-0 ${img.hoverColor} opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-6 text-center`}>
               <p className="text-white font-display text-2xl tracking-wide border-2 border-white p-2 transform -rotate-6">{img.caption}</p>
             </div>
           </div>
@@ -516,7 +516,7 @@ const LoginView = ({ setUser, setView }) => {
             disabled={isLoading}
             className="w-full bg-cow-black text-white font-display text-2xl py-4 rounded-lg hover:bg-soft-pink hover:text-cow-black border-2 border-transparent hover:border-cow-black transition-colors shadow-lg"
           >
-            {isLoading ? 'AUTHENTICATING...' : 'ENTER PASTURE'}
+            {isLoading ? 'AUTHENTICATING...' : 'ENTER COW HOLE'}
           </button>
         </form>
         <div className="mt-6 text-center text-sm text-gray-400 font-body">
@@ -534,7 +534,7 @@ const DashboardView = ({ user }) => {
 
   return (
     <div className="min-h-screen pb-32">
-      <header className="bg-meadow text-white py-12 shadow-lg relative overflow-hidden border-b-4 border-soft-pink">
+      <header className="bg-green text-white py-12 shadow-lg relative overflow-hidden border-b-4 border-soft-pink">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
           <h1 className="text-4xl md:text-5xl font-display font-bold">Welcome back, {user.username}.</h1>
           <p className="mt-2 text-xl text-green-100 font-body">The herd missed you.</p>
