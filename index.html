@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cows with a K - The Order of the Ruminant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Chewy&family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              'cow-black': '#1a1a1a',
+              'cow-white': '#ffffff',
+              'soft-pink': '#FFC1CC', /* Reverted to Soft Pink */
+              'grass-green': '#4CAF50', /* Natural Green */
+              'dark-grass': '#2E7D32', /* Contrast Green */
+              'sun-yellow': '#FDD835',
+            },
+            fontFamily: {
+              'display': ['"Chewy"', 'cursive'],
+              'body': ['"Quicksand"', 'sans-serif'],
+            },
+            backgroundImage: {
+               // We will use the custom class for the body background
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        background-color: #ffffff;
+        color: #1a1a1a;
+        font-family: 'Quicksand', sans-serif;
+      /* REPLACE THIS LINE below with your image path */
+        background-image: url("images/cow-print.png");
+      /* You can also adjust the size here */
+        background-size: 1536px,1024PX;
+        background-repeat: repeat;
+      }
+      
+      /* New class for plant/grass backgrounds */
+      .bg-meadow {
+        background-color: #4CAF50;
+        /* Replace the URL inside here to change the header/footer grass image */
+        background-image: url("images/green-grass.png");
+        background-size: auto 150%;
+        background-repeat: repeat-x;
+        background-position: center 80%;
+      }
+
+      h1, h2, h3, h4, h5, h6 {
+        font-family: 'Chewy', cursive;
+        letter-spacing: 0.05em;
+      }
+      .font-secret {
+        font-family: 'Quicksand', sans-serif;
+        font-weight: 700;
+      }
+      .redacted {
+        background-color: #1a1a1a;
+        color: #1a1a1a;
+        border-radius: 4px;
+        padding: 0 4px;
+        cursor: help;
+        transition: color 0.3s;
+      }
+      .redacted:hover {
+        color: #FFC1CC;
+      }
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 10px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #2E7D32; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #FFC1CC; 
+        border-radius: 5px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #ffffff; 
+      }
+      
+      .grass-decoration {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 100px;
+        /* REPLACE THIS LINE below with your image path */
+        background-image: url("images/green-grass.png");
+        background-size: auto 100%;
+        background-repeat: repeat-x;
+        z-index: -1;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
