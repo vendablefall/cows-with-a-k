@@ -1,0 +1,390 @@
+openapi: 3.0.0
+info:
+  title: Cows with a K Authentication API
+  description: AWS API Gateway endpoints for user authentication backed by Lambda functions
+  version: 1.0.0
+  contact:
+    email: admin@cowswithak.com
+
+servers:
+  - url: https://api.cowswithak.com/prod
+    description: Production API Gateway
+  - url: https://api.cowswithak.com/dev
+    description: Development API Gateway
+
+paths:
+  /auth/signin:
+    post:
+      summary: Sign in a user
+      description: Authenticates a user with email and password, returns JWT token
+      operationId: signIn
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: admin@cow.com
+                password:
+                  type: string
+                  format: password
+                  example: moo
+      responses:
+        '200':
+          description: Successfully authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Authentication successful
+                  token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/signup:
+    post:
+      summary: Register a new user
+      description: Creates a new user account pending council approval
+      operationId: signUp
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - answers
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: newcow@cow.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: strongMooPassword123
+                answers:
+                  type: object
+                  description: Security question answers
+                  properties:
+                    q1:
+                      type: string
+                      example: Kentucky Bluegrass
+                    q2:
+                      type: string
+                      example: Four (Correct)
+                    q3:
+                      type: string
+                      example: divine
+                    q4:
+                      type: string
+                      example: A perfect day involves grazing in the morning sun...
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Registration received. The Council will review your answers.
+                  userId:
+                    type: string
+                    example: user-123-abc
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/signout:
+    post:
+      summary: Sign out a user
+      description: Invalidates the user's JWT token
+      operationId: signOut
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successfully signed out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Successfully signed out
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/me:
+    get:
+      summary: Get current authenticated user
+      description: Returns the currently authenticated user's information
+      operationId: getCurrentUser
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User information retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      summary: Refresh JWT token
+      description: Generates a new JWT token using refresh token
+      operationId: refreshToken
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  example: refresh_token_abc123
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '401':
+          description: Invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/forgot-password:
+    post:
+      summary: Request password reset
+      description: Sends a password reset email to the user
+      operationId: forgotPassword
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: admin@cow.com
+      responses:
+        '200':
+          description: Password reset email sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Password reset instructions sent to your email
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/reset-password:
+    post:
+      summary: Reset password
+      description: Resets user password using reset token
+      operationId: resetPassword
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - resetToken
+                - newPassword
+              properties:
+                resetToken:
+                  type: string
+                  example: reset_token_xyz789
+                newPassword:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: newMooPassword456
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Password reset successfully
+        '400':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /auth/signin endpoint
+
+  schemas:
+    User:
+      type: object
+      properties:
+        userId:
+          type: string
+          example: user-123-abc
+        email:
+          type: string
+          format: email
+          example: admin@cow.com
+        username:
+          type: string
+          example: admin@cow.com
+        status:
+          type: string
+          enum: [pending, active, suspended]
+          example: active
+        clearanceLevel:
+          type: string
+          enum: [LEVEL 1, LEVEL 2, TOP SECRET]
+          example: LEVEL 1
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-01-15T10:30:00Z'
+        lastLogin:
+          type: string
+          format: date-time
+          example: '2026-01-29T08:15:00Z'
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: Invalid credentials
+        code:
+          type: string
+          example: AUTH_ERROR
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-01-29T12:00:00Z'
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization endpoints

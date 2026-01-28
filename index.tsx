@@ -24,41 +24,336 @@ import {
 } from 'lucide-react';
 
 /**
- * MOCK AWS SERVICES
+ * AWS BACKEND CONFIGURATION
  */
-const MockAWS = {
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://api.cowswithak.com/prod';
+
+/**
+ * AWS Backend - Real API Gateway Integration
+ * Implements authentication endpoints backed by Lambda functions
+ */
+const AWSBackend = {
+  // Store user and token in memory (consider localStorage for persistence)
+  _currentUser: null,
+  _authToken: null,
+
   Auth: {
-    user: null,
-    async signIn(username, password) {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      if (username === 'admin@cow.com' && password === 'moo') {
-        this.user = { username, attributes: { email: username, sub: '123-cow-id' } };
-        return this.user;
+    /**
+     * Sign in user - POST /auth/signin
+     * Calls Lambda function: signin.py
+     */
+    async signIn(email, password) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/signin`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Authentication failed');
+        }
+
+        if (data.success && data.token) {
+          // Store token and user data
+          AWSBackend._authToken = data.token;
+          AWSBackend._currentUser = {
+            username: data.user.email,
+            attributes: {
+              email: data.user.email,
+              sub: data.user.userId,
+              clearanceLevel: data.user.clearanceLevel,
+              status: data.user.status
+            }
+          };
+
+          // Store in localStorage for persistence
+          localStorage.setItem('cow_auth_token', data.token);
+          localStorage.setItem('cow_user_data', JSON.stringify(data.user));
+
+          return AWSBackend._currentUser;
+        }
+
+        throw new Error('Invalid response from server');
+      } catch (error) {
+        console.error('Sign in error:', error);
+        throw error;
       }
-      throw new Error('User not authorized or account pending Council approval.');
     },
+
+    /**
+     * Sign out user - POST /auth/signout
+     * Calls Lambda function: signout.py
+     */
     async signOut() {
-      this.user = null;
-      return true;
+      try {
+        const token = AWSBackend._authToken || localStorage.getItem('cow_auth_token');
+        
+        if (token) {
+          await fetch(`${API_BASE_URL}/auth/signout`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+          });
+        }
+
+        // Clear local state regardless of API response
+        AWSBackend._currentUser = null;
+        AWSBackend._authToken = null;
+        localStorage.removeItem('cow_auth_token');
+        localStorage.removeItem('cow_user_data');
+
+        return true;
+      } catch (error) {
+        console.error('Sign out error:', error);
+        // Still clear local state even on error
+        AWSBackend._currentUser = null;
+        AWSBackend._authToken = null;
+        localStorage.removeItem('cow_auth_token');
+        localStorage.removeItem('cow_user_data');
+        return true;
+      }
     },
+
+    /**
+     * Get current authenticated user - GET /auth/me
+     * Calls Lambda function: get_current_user.py
+     */
     async currentAuthenticatedUser() {
-      return this.user;
+      // Check memory first
+      if (AWSBackend._currentUser) {
+        return AWSBackend._currentUser;
+      }
+
+      // Try to restore from localStorage
+      const storedToken = localStorage.getItem('cow_auth_token');
+      const storedUser = localStorage.getItem('cow_user_data');
+
+      if (storedToken && storedUser) {
+        try {
+          // Verify token is still valid by calling /auth/me
+          const response = await fetch(`${API_BASE_URL}/auth/me`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${storedToken}`
+            }
+          });
+
+          const data = await response.json();
+
+          if (response.ok && data.success) {
+            AWSBackend._authToken = storedToken;
+            AWSBackend._currentUser = {
+              username: data.user.email,
+              attributes: {
+                email: data.user.email,
+                sub: data.user.userId,
+                clearanceLevel: data.user.clearanceLevel,
+                status: data.user.status
+              }
+            };
+            return AWSBackend._currentUser;
+          }
+        } catch (error) {
+          console.error('Token validation error:', error);
+        }
+      }
+
+      return null;
+    },
+
+    /**
+     * Refresh JWT token - POST /auth/refresh
+     * Note: This endpoint is defined in swagger but not fully implemented yet
+     */
+    async refreshToken(refreshToken) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ refreshToken })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          AWSBackend._authToken = data.token;
+          localStorage.setItem('cow_auth_token', data.token);
+          return data.token;
+        }
+
+        throw new Error(data.error || 'Token refresh failed');
+      } catch (error) {
+        console.error('Token refresh error:', error);
+        throw error;
+      }
     }
   },
+
   API: {
+    /**
+     * Sign up new user - POST /auth/signup
+     * Calls Lambda function: signup.py
+     */
     async post(apiName, path, init) {
       console.log(`[AWS API] POST ${apiName}${path}`, init.body);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      if (path === '/register') {
-        return { 
-          message: 'Registration received. The Council will review your answers.',
-          debugInfo: 'Email sent via AWS SES to admin@cowswithak.com' 
-        };
+
+      // Handle registration endpoint
+      if (path === '/register' || path === '/signup') {
+        try {
+          const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(init.body)
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || 'Registration failed');
+          }
+
+          return data;
+        } catch (error) {
+          console.error('Registration error:', error);
+          throw error;
+        }
       }
+
+      // Handle message board endpoint (placeholder for future implementation)
       if (path === '/messages') {
-        return { success: true };
+        try {
+          const token = AWSBackend._authToken || localStorage.getItem('cow_auth_token');
+          
+          const response = await fetch(`${API_BASE_URL}/messages`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(init.body)
+          });
+
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error('Message post error:', error);
+          throw error;
+        }
       }
-      return {};
+
+      // Generic POST handler for other endpoints
+      try {
+        const token = AWSBackend._authToken || localStorage.getItem('cow_auth_token');
+        const headers = {
+          'Content-Type': 'application/json',
+        };
+
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`${API_BASE_URL}${path}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(init.body)
+        });
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error('API error:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Generic GET request handler
+     */
+    async get(apiName, path, init = {}) {
+      try {
+        const token = AWSBackend._authToken || localStorage.getItem('cow_auth_token');
+        const headers = {
+          'Content-Type': 'application/json',
+        };
+
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`${API_BASE_URL}${path}`, {
+          method: 'GET',
+          headers
+        });
+
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error('API GET error:', error);
+        throw error;
+      }
+    }
+  },
+
+  /**
+   * Password reset functionality - POST /auth/forgot-password
+   */
+  async forgotPassword(email) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Password reset request failed');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Reset password with token - POST /auth/reset-password
+   */
+  async resetPassword(resetToken, newPassword) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ resetToken, newPassword })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Password reset failed');
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Reset password error:', error);
+      throw error;
     }
   }
 };
@@ -352,7 +647,7 @@ const RegistrationView = ({ setView }) => {
     e.preventDefault();
     setStatus('submitting');
     try {
-      await MockAWS.API.post('CowAPI', '/register', { body: formData });
+      await AWSBackend.API.post('CowAPI', '/register', { body: formData });
       setStatus('success');
     } catch (err) {
       console.error(err);
@@ -465,7 +760,7 @@ const LoginView = ({ setUser, setView }) => {
     setError('');
     
     try {
-      const user = await MockAWS.Auth.signIn(email, password);
+      const user = await AWSBackend.Auth.signIn(email, password);
       setUser(user);
       setView('dashboard');
     } catch (err) {
@@ -649,7 +944,7 @@ const App = () => {
   const [user, setUser] = useState(null);
 
   const handleLogout = async () => {
-    await MockAWS.Auth.signOut();
+    await AWSBackend.Auth.signOut();
     setUser(null);
     setView('landing');
   };
