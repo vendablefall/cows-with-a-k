@@ -67,7 +67,7 @@ def user_exists(email):
         return False
 
 
-def create_user(email, password, answers):
+def create_user(email, password, first_name, last_name, cow_name, profile_picture, answers):
     """Create new user in DynamoDB"""
     user_id = f"user-{uuid.uuid4()}"
     salt, pwd_hash = hash_password(password)
@@ -76,6 +76,9 @@ def create_user(email, password, answers):
         'userId': user_id,
         'email': email.lower(),
         'username': email.lower(),
+        'firstName': first_name,
+        'lastName': last_name,
+        'cowName': cow_name,
         'passwordHash': pwd_hash,
         'passwordSalt': salt,
         'status': 'pending',
@@ -85,6 +88,12 @@ def create_user(email, password, answers):
         'lastLogin': None
     }
     
+    # Add profile picture if provided
+    if profile_picture:
+        user_item['profilePicture'] = profile_picture.get('data', '')
+        user_item['profilePictureName'] = profile_picture.get('name', '')
+        user_item['profilePictureType'] = profile_picture.get('type', '')
+    
     try:
         users_table.put_item(Item=user_item)
         return user_id
@@ -93,10 +102,10 @@ def create_user(email, password, answers):
         raise
 
 
-def send_admin_notification(email, answers):
+def send_admin_notification(email, first_name, last_name, cow_name, answers):
     """Send email notification to admin about new registration"""
     try:
-        subject = f"New Cow Registration: {email}"
+        subject = f"New Cow Registration: {cow_name} ({email})"
         
         answers_text = "\n".join([
             f"{key}: {value}"
@@ -106,8 +115,11 @@ def send_admin_notification(email, answers):
         body = f"""
 A new cow has requested to join the herd!
 
-Email: {email}
-Registration Time: {datetime.utcnow().isoformat()}
+Personal Information:
+- Name: {first_name} {last_name}
+- Cow/Paddock Name: {cow_name}
+- Email: {email}
+- Registration Time: {datetime.utcnow().isoformat()}
 
 Security Question Answers:
 {answers_text}
@@ -140,6 +152,12 @@ def lambda_handler(event, context):
     {
         "email": "newcow@cow.com",
         "password": "strongPassword123",
+        "firstName": "John",
+        "lastName": "Doe",
+        "cowName": "Thunder Hooves",
+        "profilePicture": "data:image/png;base64,...",
+        "profilePictureName": "photo.png",
+        "profilePictureType": "image/png",
         "answers": {
             "q1": "Kentucky Bluegrass",
             "q2": "Four (Correct)",
@@ -170,16 +188,28 @@ def lambda_handler(event, context):
         body = json.loads(event.get('body', '{}'))
         email = body.get('email', '').strip()
         password = body.get('password', '')
+        first_name = body.get('firstName', '').strip()
+        last_name = body.get('lastName', '').strip()
+        cow_name = body.get('cowName', '').strip()
         answers = body.get('answers', {})
         
+        # Handle profile picture (base64 encoded)
+        profile_picture = None
+        if body.get('profilePicture'):
+            profile_picture = {
+                'data': body.get('profilePicture', ''),
+                'name': body.get('profilePictureName', ''),
+                'type': body.get('profilePictureType', '')
+            }
+        
         # Validate input
-        if not email or not password:
+        if not email or not password or not first_name or not last_name or not cow_name:
             return {
                 'statusCode': 400,
                 'headers': headers,
                 'body': json.dumps({
                     'success': False,
-                    'error': 'Email and password are required',
+                    'error': 'Email, password, first name, last name, and cow name are required',
                     'code': 'MISSING_FIELDS'
                 })
             }
@@ -233,10 +263,10 @@ def lambda_handler(event, context):
             }
         
         # Create user
-        user_id = create_user(email, password, answers)
+        user_id = create_user(email, password, first_name, last_name, cow_name, profile_picture, answers)
         
         # Send notification to admin
-        send_admin_notification(email, answers)
+        send_admin_notification(email, first_name, last_name, cow_name, answers)
         
         # Success response
         return {

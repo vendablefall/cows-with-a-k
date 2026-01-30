@@ -506,10 +506,15 @@ const EVENTS_DATA = [
 ];
 
 const REGISTRATION_QUESTIONS = [
-  { id: 'q1', type: 'text', label: "What is your favorite grass blend?" },
-  { id: 'q2', type: 'select', label: "How many stomachs do you possess?", options: ["One (Human Spy)", "Two", "Three", "Four (Correct)"] },
-  { id: 'q3', type: 'text', label: "Finish the phrase: 'To err is human, to moo is...'" },
-  { id: 'q4', type: 'textarea', label: "Describe your perfect day in the pasture." }
+  { id: 'firstName', type: 'text', label: "First Name", required: true },
+  { id: 'lastName', type: 'text', label: "Last Name", required: true },
+  { id: 'cowName', type: 'text', label: "Cow/Paddock Name", placeholder: "e.g., Bessie, Thunder Hooves, Meadow Master", required: true },
+  { id: 'email', type: 'email', label: "Email Address", required: true },
+  { id: 'profilePicture', type: 'file', label: "Profile Picture", accept: "image/*", required: false },
+  { id: 'q1', type: 'text', label: "What is your favorite grass blend?", required: true },
+  { id: 'q2', type: 'select', label: "How many stomachs do you possess?", options: ["One (Human Spy)", "Two", "Three", "Four (Correct)"], required: true },
+  { id: 'q3', type: 'text', label: "Finish the phrase: 'To err is human, to moo is...'", required: true },
+  { id: 'q4', type: 'textarea', label: "Describe your perfect day in the pasture.", required: true }
 ];
 
 const MEMBER_LINKS = [
@@ -738,9 +743,30 @@ const GalleryView = () => (
 const RegistrationView = ({ setView }) => {
   const [formData, setFormData] = useState({});
   const [status, setStatus] = useState('idle');
+  const [profilePreview, setProfilePreview] = useState(null);
 
   const handleChange = (id, value) => {
     setFormData(prev => ({ ...prev, [id]: value }));
+  };
+
+  const handleFileChange = (id, file) => {
+    if (file) {
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setProfilePreview(previewUrl);
+      
+      // Convert to base64 for API submission
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ 
+          ...prev, 
+          [id]: reader.result,
+          [`${id}Name`]: file.name,
+          [`${id}Type`]: file.type
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -794,19 +820,64 @@ const RegistrationView = ({ setView }) => {
           {REGISTRATION_QUESTIONS.map((q) => (
             <div key={q.id} className="space-y-2">
               <label className="block text-lg font-bold text-cow-black font-display">
-                {q.label}
+                {q.label} {q.required && <span className="text-soft-pink">*</span>}
               </label>
               {q.type === 'text' && (
                 <input 
-                  required
+                  required={q.required}
                   type="text" 
+                  placeholder={q.placeholder || ''}
                   className="w-full border-2 border-cow-black bg-white p-4 rounded-lg focus:outline-none focus:border-soft-pink focus:shadow-[4px_4px_0px_0px_#FFC1CC] transition-all font-body text-lg"
                   onChange={(e) => handleChange(q.id, e.target.value)}
                 />
               )}
+              {q.type === 'email' && (
+                <input 
+                  required={q.required}
+                  type="email" 
+                  placeholder="your.email@example.com"
+                  className="w-full border-2 border-cow-black bg-white p-4 rounded-lg focus:outline-none focus:border-soft-pink focus:shadow-[4px_4px_0px_0px_#FFC1CC] transition-all font-body text-lg"
+                  onChange={(e) => handleChange(q.id, e.target.value)}
+                />
+              )}
+              {q.type === 'file' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center w-full">
+                    <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-cow-black rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                      {profilePreview ? (
+                        <div className="relative w-full h-full p-4">
+                          <img 
+                            src={profilePreview} 
+                            alt="Profile preview" 
+                            className="w-full h-full object-contain rounded-lg"
+                          />
+                          <div className="absolute top-2 right-2 bg-soft-pink text-cow-black px-2 py-1 rounded text-xs font-bold">
+                            Click to change
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          <ImageIcon className="w-12 h-12 mb-3 text-grass-green" />
+                          <p className="mb-2 text-sm text-gray-700 font-bold">
+                            <span className="font-display text-lg">Click to upload</span>
+                          </p>
+                          <p className="text-xs text-gray-500">PNG, JPG or GIF (MAX. 5MB)</p>
+                        </div>
+                      )}
+                      <input 
+                        type="file" 
+                        className="hidden" 
+                        accept={q.accept}
+                        required={q.required}
+                        onChange={(e) => handleFileChange(q.id, e.target.files[0])}
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
               {q.type === 'textarea' && (
                 <textarea 
-                  required
+                  required={q.required}
                   rows={4}
                   className="w-full border-2 border-cow-black bg-white p-4 rounded-lg focus:outline-none focus:border-soft-pink focus:shadow-[4px_4px_0px_0px_#FFC1CC] transition-all font-body text-lg"
                   onChange={(e) => handleChange(q.id, e.target.value)}
@@ -814,13 +885,13 @@ const RegistrationView = ({ setView }) => {
               )}
               {q.type === 'select' && (
                 <select 
-                  required
+                  required={q.required}
                   className="w-full border-2 border-cow-black bg-white p-4 rounded-lg focus:outline-none focus:border-soft-pink focus:shadow-[4px_4px_0px_0px_#FFC1CC] transition-all font-body text-lg"
                   onChange={(e) => handleChange(q.id, e.target.value)}
                   defaultValue=""
                 >
                   <option value="" disabled>Select an option...</option>
-                  {q.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  {q.options && q.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               )}
             </div>

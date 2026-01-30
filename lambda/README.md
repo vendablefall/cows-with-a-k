@@ -85,11 +85,17 @@ Attributes:
 - userId (String)
 - email (String)
 - username (String)
+- firstName (String) - User's first name
+- lastName (String) - User's last name
+- cowName (String) - User's cow/paddock name
+- profilePicture (String) - Base64 encoded profile picture (optional)
+- profilePictureName (String) - Original filename of profile picture (optional)
+- profilePictureType (String) - MIME type of profile picture (optional)
 - passwordHash (String)
 - passwordSalt (String)
 - status (String): pending, active, suspended
 - clearanceLevel (String): LEVEL 1, LEVEL 2, TOP SECRET
-- answers (Map)
+- answers (Map) - Security question answers
 - createdAt (String - ISO 8601)
 - lastLogin (String - ISO 8601)
 ```

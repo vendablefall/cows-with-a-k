@@ -150,7 +150,23 @@ terraform destroy
 - **CowsWithAK-Users**
   - Primary Key: `email`
   - Billing: Pay-per-request
-  - Attributes: userId, username, passwordHash, status, clearanceLevel, etc.
+  - Attributes: 
+    - userId (String)
+    - email (String)
+    - username (String)
+    - firstName (String) - User's first name
+    - lastName (String) - User's last name
+    - cowName (String) - User's cow/paddock name
+    - profilePicture (String) - Base64 encoded profile picture (optional)
+    - profilePictureName (String) - Profile picture filename (optional)
+    - profilePictureType (String) - Profile picture MIME type (optional)
+    - passwordHash (String)
+    - passwordSalt (String)
+    - status (String): pending, active, suspended
+    - clearanceLevel (String): LEVEL 1, LEVEL 2, TOP SECRET
+    - answers (Map) - Security question answers
+    - createdAt (ISO 8601)
+    - lastLogin (ISO 8601)
 
 - **CowsWithAK-Messages**
   - Primary Key: `messageId`
